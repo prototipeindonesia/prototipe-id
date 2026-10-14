@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #f9fafb;
+  color: #1f2937;
+}
+
+.card {
+  @apply bg-white rounded-xl shadow-sm border border-gray-100 p-5;
+}
+.btn {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition;
+}
+.btn-primary {
+  @apply bg-blue-600 text-white hover:bg-blue-700;
+}
+.btn-outline {
+  @apply border border-gray-300 hover:bg-gray-50;
+}
+.input {
+  @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none;
+}
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
