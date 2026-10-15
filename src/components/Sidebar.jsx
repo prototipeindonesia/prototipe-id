@@ -11,6 +11,8 @@ import {
   Settings,
   FileText,
   Shield,
+  Activity,
+  MessageCircle,
   LogOut,
 } from 'lucide-react';
 import { logoutUser } from '@/lib/auth';
@@ -22,12 +24,14 @@ const menuByRole = {
     { href: '/dashboard/freelancers', label: 'Freelancer', icon: Briefcase },
     { href: '/dashboard/admins', label: 'Manajemen Admin', icon: Shield },
     { href: '/dashboard/finance', label: 'Keuangan', icon: Wallet },
+    { href: '/dashboard/chat', label: 'chat', icon: MessageCircle },
   ],
   admin: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/orders', label: 'Order', icon: ShoppingBag },
     { href: '/dashboard/freelancers', label: 'Freelancer', icon: Briefcase },
     { href: '/dashboard/finance', label: 'Keuangan', icon: Wallet },
+    { href: '/dashboard/chat', label: 'chat', icon: MessageCircle },
   ],
   freelancer: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -35,6 +39,7 @@ const menuByRole = {
     { href: '/dashboard/my-orders', label: 'Order Saya', icon: FileText },
     { href: '/dashboard/portfolio', label: 'Portfolio', icon: User },
     { href: '/dashboard/finance', label: 'Keuangan', icon: Wallet },
+    { href: '/dashboard/chat', label: 'chat', icon: MessageCircle },
   ],
 };
 
