@@ -9,15 +9,20 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  where,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
-// Buat ID chat unik dari 2 user (urut abjad agar konsisten)
+// =========================================================
+// BUAT ID CHAT UNIK dari 2 user (urut abjad agar konsisten)
+// =========================================================
 export function getChatId(uid1, uid2) {
   return [uid1, uid2].sort().join('_');
 }
 
-// Kirim pesan
+// =========================================================
+// KIRIM PESAN
+// =========================================================
 export async function sendMessage(receiverId, text) {
   const senderId = auth.currentUser?.uid;
   if (!senderId) throw new Error('Harus login.');
@@ -45,7 +50,9 @@ export async function sendMessage(receiverId, text) {
   });
 }
 
-// Subscribe pesan realtime
+// =========================================================
+// SUBSCRIBE PESAN (realtime)
+// =========================================================
 export function subscribeMessages(receiverId, callback) {
   const senderId = auth.currentUser?.uid;
   if (!senderId) return () => {};
@@ -60,7 +67,9 @@ export function subscribeMessages(receiverId, callback) {
   });
 }
 
-// Subscribe daftar chat user (untuk sidebar)
+// =========================================================
+// SUBSCRIBE DAFTAR CHAT USER (untuk sidebar)
+// =========================================================
 export function subscribeChatList(callback) {
   const uid = auth.currentUser?.uid;
   if (!uid) return () => {};
@@ -92,10 +101,8 @@ export function subscribeChatList(callback) {
 }
 
 // =========================================================
-// CARI ADMIN UNTUK CHAT
+// CARI SUPER ADMIN (untuk target chat otomatis)
 // =========================================================
-import { getDocs } from 'firebase/firestore';
-
 export async function findSuperAdmin() {
   try {
     const q = query(
@@ -112,6 +119,9 @@ export async function findSuperAdmin() {
   }
 }
 
+// =========================================================
+// CARI SEMUA ADMIN & SUPER ADMIN (untuk modal Chat Baru)
+// =========================================================
 export async function findAdminOrSuperAdmin() {
   try {
     const q = query(
