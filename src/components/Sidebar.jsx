@@ -2,8 +2,16 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  LayoutDashboard, ShoppingBag, Users, Briefcase,
-  Wallet, User, Settings, FileText, LogOut,
+  LayoutDashboard,
+  ShoppingBag,
+  Users,
+  Briefcase,
+  Wallet,
+  User,
+  Settings,
+  FileText,
+  Shield,
+  LogOut,
 } from 'lucide-react';
 import { logoutUser } from '@/lib/auth';
 
@@ -12,12 +20,14 @@ const menuByRole = {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/orders', label: 'Order', icon: ShoppingBag },
     { href: '/dashboard/freelancers', label: 'Freelancer', icon: Briefcase },
+    { href: '/dashboard/admins', label: 'Manajemen Admin', icon: Shield },
     { href: '/dashboard/finance', label: 'Keuangan', icon: Wallet },
   ],
   admin: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/dashboard/orders', label: 'Order', icon: ShoppingBag },
     { href: '/dashboard/freelancers', label: 'Freelancer', icon: Briefcase },
+    { href: '/dashboard/finance', label: 'Keuangan', icon: Wallet },
   ],
   freelancer: [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -50,17 +60,25 @@ export default function Sidebar({ role }) {
           const active = pathname === m.href;
           const Icon = m.icon;
           return (
-            <Link key={m.href} href={m.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition
-                ${active ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>
+            <Link
+              key={m.href}
+              href={m.href}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                active
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
               <Icon size={18} /> {m.label}
             </Link>
           );
         })}
       </nav>
 
-      <button onClick={handleLogout}
-        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50">
+      <button
+        onClick={handleLogout}
+        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
+      >
         <LogOut size={18} /> Keluar
       </button>
     </aside>
