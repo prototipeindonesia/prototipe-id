@@ -7,8 +7,8 @@ import {
   findAdminOrSuperAdmin,
 } from '@/lib/chat';
 import { useAuth } from '@/context/AuthContext';
-import { Send, MessageCircle, Plus, X } from 'lucide-react';
-import ChatButton from '@/components/ChatButton';
+import { Send, MessageCircle, Plus, X, AlertCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function ChatPage() {
   const { user, role } = useAuth();
@@ -19,12 +19,14 @@ export default function ChatPage() {
   const [showNewChat, setShowNewChat] = useState(false);
   const [contacts, setContacts] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [sending, setSending] = useState(false);
 
   // Load daftar chat
   useEffect(() => {
+    if (!user) return;
     const unsub = subscribeChatList(setChatList);
     return () => unsub();
-  }, []);
+  }, [user]);
 
   // Load pesan ketika chat aktif berubah
   useEffect(() => {
@@ -33,27 +35,59 @@ export default function ChatPage() {
     return () => unsub();
   }, [activeChat]);
 
-  // Load kontak untuk "Chat Baru"
+  // Buka modal "Chat Baru" & load kontak
   const openNewChat = async () => {
+    console.log('[ChatPage] Open new chat modal');
     setShowNewChat(true);
     setLoadingContacts(true);
     try {
       const admins = await findAdminOrSuperAdmin();
-      // Filter: buang diri sendiri
+      console.log('[ChatPage] Admins loaded:', admins.length);
       const list = admins.filter((u) => u.id !== user?.uid);
       setContacts(list);
-    } catch (_) {
+    } catch (err) {
+      console.error('[ChatPage] Load contacts error:', err);
+      toast.error('Gagal load kontak.');
       setContacts([]);
     } finally {
       setLoadingContacts(false);
     }
   };
 
+  // Pilih kontak & buat chat
+  const selectContact = async (contact) => {
+    console.log('[ChatPage] Select contact:', contact);
+
+    try {
+      // Buat/pastikan chat doc lewat sendMessage (kirim pesan kosong trigger)
+      // Sebenarnya kita panggil subscribeMessages ke contact id
+      setActiveChat({
+        id: [user.uid, contact.id].sort().join('_'),
+        otherId: contact.id,
+        otherUser: { name: contact.name, email: contact.email },
+      });
+      setShowNewChat(false);
+      toast.success(`Chat dengan ${contact.name} dibuka`);
+    } catch (err) {
+      console.error('Select contact error:', err);
+      toast.error(err.message);
+    }
+  };
+
   const handleSend = async (e) => {
     e.preventDefault();
-    if (!text.trim() || !activeChat) return;
-    await sendMessage(activeChat.otherId, text.trim());
-    setText('');
+    if (!text.trim() || !activeChat || sending) return;
+
+    setSending(true);
+    try {
+      await sendMessage(activeChat.otherId, text.trim());
+      setText('');
+    } catch (err) {
+      console.error('Send error:', err);
+      toast.error(err.message);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -67,9 +101,9 @@ export default function ChatPage() {
             <MessageCircle size={18} /> Chat
           </h2>
           <button
+            type="button"
             onClick={openNewChat}
             className="btn btn-primary text-xs"
-            title="Chat Baru"
           >
             <Plus size={14} /> Baru
           </button>
@@ -82,6 +116,7 @@ export default function ChatPage() {
                 Belum ada percakapan.
               </p>
               <button
+                type="button"
                 onClick={openNewChat}
                 className="btn btn-primary text-xs mx-auto"
               >
@@ -92,6 +127,7 @@ export default function ChatPage() {
 
           {chatList.map((chat) => (
             <button
+              type="button"
               key={chat.id}
               onClick={() => setActiveChat(chat)}
               className={`w-full text-left p-3 border-b hover:bg-gray-50 ${
@@ -107,7 +143,7 @@ export default function ChatPage() {
                     {chat.otherUser?.name || 'Unknown'}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
-                    {chat.lastMessage}
+                    {chat.lastMessage || 'Belum ada pesan'}
                   </p>
                 </div>
               </div>
@@ -131,9 +167,18 @@ export default function ChatPage() {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               {messages.length === 0 && (
-                <p className="text-center text-sm text-gray-400 py-8">
-                  Belum ada pesan. Mulai percakapan!
-                </p>
+                <div className="text-center py-12">
+                  <MessageCircle
+                    size={40}
+                    className="mx-auto text-gray-300 mb-2"
+                  />
+                  <p className="text-sm text-gray-500">
+                    Belum ada pesan.
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Kirim pesan pertama Anda di bawah.
+                  </p>
+                </div>
               )}
               {messages.map((m) => {
                 const isMe = m.senderId === user?.uid;
@@ -162,8 +207,13 @@ export default function ChatPage() {
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Tulis pesan..."
                 className="input flex-1"
+                disabled={sending}
               />
-              <button type="submit" className="btn btn-primary">
+              <button
+                type="submit"
+                disabled={sending || !text.trim()}
+                className="btn btn-primary disabled:opacity-50"
+              >
                 <Send size={16} />
               </button>
             </form>
@@ -172,7 +222,11 @@ export default function ChatPage() {
           <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
             <MessageCircle size={48} className="text-gray-300" />
             <p>Pilih percakapan atau mulai chat baru</p>
-            <button onClick={openNewChat} className="btn btn-primary text-sm">
+            <button
+              type="button"
+              onClick={openNewChat}
+              className="btn btn-primary text-sm"
+            >
               <Plus size={14} /> Mulai Chat Baru
             </button>
           </div>
@@ -194,6 +248,7 @@ export default function ChatPage() {
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold">Mulai Chat Baru</h3>
               <button
+                type="button"
                 onClick={() => setShowNewChat(false)}
                 className="text-gray-400"
               >
@@ -209,14 +264,18 @@ export default function ChatPage() {
 
             {!loadingContacts && contacts.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-gray-500 text-sm">
-                  Tidak ada kontak tersedia.
+                <AlertCircle
+                  size={40}
+                  className="mx-auto text-gray-300 mb-3"
+                />
+                <p className="text-gray-600 text-sm font-medium mb-1">
+                  Tidak ada kontak tersedia
                 </p>
-                {role === 'freelancer' && (
-                  <p className="text-xs text-gray-400 mt-2">
-                    Hubungi Super Admin untuk membuat akun admin.
-                  </p>
-                )}
+                <p className="text-xs text-gray-400">
+                  {role === 'freelancer'
+                    ? 'Hubungi Super Admin untuk membuat akun admin.'
+                    : 'Belum ada admin lain terdaftar.'}
+                </p>
               </div>
             )}
 
@@ -235,13 +294,13 @@ export default function ChatPage() {
                       {c.role === 'admin_super' ? 'Super Admin' : 'Admin'}
                     </p>
                   </div>
-                  <ChatButton
-                    targetUserId={c.id}
-                    targetName={c.name}
-                    label="Chat"
+                  <button
+                    type="button"
+                    onClick={() => selectContact(c)}
                     className="btn btn-primary text-xs"
-                    onStart={() => setShowNewChat(false)}
-                  />
+                  >
+                    Chat
+                  </button>
                 </div>
               ))}
             </div>
