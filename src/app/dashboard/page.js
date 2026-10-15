@@ -7,11 +7,13 @@ import {
   where,
   orderBy,
   limit,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import StatCard from '@/components/StatCard';
 import { formatRupiah } from '@/utils/format';
+import ChatButton from '@/components/ChatButton';
 import Link from 'next/link';
 import {
   ShoppingBag,
@@ -27,6 +29,7 @@ import {
   FileText,
   ArrowRight,
   Activity,
+  MessageCircle,
 } from 'lucide-react';
 
 // =========================================================
@@ -48,6 +51,7 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
   const [reviews, setReviews] = useState([]);
+  const [superAdmin, setSuperAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // =========================================================
@@ -81,6 +85,23 @@ export default function DashboardPage() {
       },
       (err) => console.error('Reviews error:', err)
     );
+
+    // Load Super Admin untuk tombol chat
+    (async () => {
+      try {
+        const q = query(
+          collection(db, 'users'),
+          where('role', '==', 'admin_super')
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const doc = snap.docs[0];
+          setSuperAdmin({ id: doc.id, ...doc.data() });
+        }
+      } catch (err) {
+        console.error('Load super admin error:', err);
+      }
+    })();
 
     return () => {
       unsubOrders();
@@ -236,7 +257,15 @@ export default function DashboardPage() {
               : 'Freelancer Dashboard'}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {role === 'freelancer' && superAdmin && (
+            <ChatButton
+              targetUserId={superAdmin.id}
+              targetName={superAdmin.name}
+              label="Chat Admin"
+              className="btn btn-outline justify-center"
+            />
+          )}
           {role === 'freelancer' && (
             <Link href="/dashboard/job-board" className="btn btn-primary">
               <Briefcase size={16} /> Cari Order
@@ -282,7 +311,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Info Card */}
+          {/* Info Card Tips */}
           <div className="card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-blue-600 text-white rounded-lg flex items-center justify-center flex-shrink-0">
@@ -298,6 +327,30 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+
+          {/* 🆕 Chat Admin */}
+          {superAdmin && (
+            <div className="card flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center flex-shrink-0">
+                  <MessageCircle size={24} />
+                </div>
+                <div>
+                  <h3 className="font-semibold">Butuh Bantuan?</h3>
+                  <p className="text-sm text-gray-600">
+                    Chat langsung dengan admin{' '}
+                    <span className="font-medium">{superAdmin.name}</span>
+                  </p>
+                </div>
+              </div>
+              <ChatButton
+                targetUserId={superAdmin.id}
+                targetName={superAdmin.name}
+                label="Mulai Chat"
+                className="btn btn-primary justify-center"
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -390,7 +443,7 @@ export default function DashboardPage() {
       )}
 
       {/* ============================================ */}
-      {/* RECENT ORDERS — 2 kolom (order + top freelancer) */}
+      {/* RECENT ORDERS + TOP FREELANCER / REVIEWS */}
       {/* ============================================ */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Recent Orders */}
@@ -540,8 +593,7 @@ export default function DashboardPage() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate">{f.name}</p>
                       <p className="text-xs text-gray-500">
-                        {f.completedOrders} order •{' '}
-                        {formatRupiah(f.earnings)}
+                        {f.completedOrders} order • {formatRupiah(f.earnings)}
                       </p>
                     </div>
                     {f.rating > 0 && (
@@ -575,20 +627,14 @@ export default function DashboardPage() {
                 href="/dashboard/job-board"
                 className="p-4 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition text-center"
               >
-                <Briefcase
-                  size={20}
-                  className="mx-auto text-blue-600 mb-2"
-                />
+                <Briefcase size={20} className="mx-auto text-blue-600 mb-2" />
                 <p className="text-sm font-medium">Cari Order</p>
               </Link>
               <Link
                 href="/dashboard/my-orders"
                 className="p-4 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition text-center"
               >
-                <FileText
-                  size={20}
-                  className="mx-auto text-blue-600 mb-2"
-                />
+                <FileText size={20} className="mx-auto text-blue-600 mb-2" />
                 <p className="text-sm font-medium">Order Saya</p>
               </Link>
               <Link
@@ -621,20 +667,14 @@ export default function DashboardPage() {
                 href="/dashboard/freelancers"
                 className="p-4 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition text-center"
               >
-                <Briefcase
-                  size={20}
-                  className="mx-auto text-blue-600 mb-2"
-                />
+                <Briefcase size={20} className="mx-auto text-blue-600 mb-2" />
                 <p className="text-sm font-medium">Freelancer</p>
               </Link>
               <Link
                 href="/dashboard/audit-logs"
                 className="p-4 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition text-center"
               >
-                <Activity
-                  size={20}
-                  className="mx-auto text-blue-600 mb-2"
-                />
+                <Activity size={20} className="mx-auto text-blue-600 mb-2" />
                 <p className="text-sm font-medium">Audit Log</p>
               </Link>
               {role === 'admin_super' ? (
