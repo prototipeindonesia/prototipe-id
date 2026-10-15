@@ -10,7 +10,12 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
-export async function submitReview({ orderId, freelancerId, rating, comment }) {
+export async function submitReview({
+  orderId,
+  freelancerId,
+  rating,
+  comment,
+}) {
   const reviewerId = auth.currentUser?.uid;
   if (!reviewerId) throw new Error('Harus login.');
 
@@ -19,12 +24,15 @@ export async function submitReview({ orderId, freelancerId, rating, comment }) {
     reviewerId,
     freelancerId,
     rating,
-    comment,
+    comment: comment || '',
     createdAt: serverTimestamp(),
   });
 
   // Update rata-rata rating freelancer
-  const q = query(collection(db, 'reviews'), where('freelancerId', '==', freelancerId));
+  const q = query(
+    collection(db, 'reviews'),
+    where('freelancerId', '==', freelancerId)
+  );
   const snap = await getDocs(q);
   const all = snap.docs.map((d) => d.data());
   const avg = all.reduce((sum, r) => sum + r.rating, 0) / all.length;
@@ -36,7 +44,10 @@ export async function submitReview({ orderId, freelancerId, rating, comment }) {
 }
 
 export async function getFreelancerReviews(freelancerId) {
-  const q = query(collection(db, 'reviews'), where('freelancerId', '==', freelancerId));
+  const q = query(
+    collection(db, 'reviews'),
+    where('freelancerId', '==', freelancerId)
+  );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
