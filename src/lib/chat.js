@@ -89,3 +89,38 @@ export function subscribeChatList(callback) {
     callback(enriched);
   });
 }
+
+// =========================================================
+// CARI ADMIN UNTUK CHAT
+// =========================================================
+import { getDocs } from 'firebase/firestore';
+
+export async function findSuperAdmin() {
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('role', '==', 'admin_super')
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const adminDoc = snap.docs[0];
+    return { id: adminDoc.id, ...adminDoc.data() };
+  } catch (err) {
+    console.error('findSuperAdmin error:', err);
+    return null;
+  }
+}
+
+export async function findAdminOrSuperAdmin() {
+  try {
+    const q = query(
+      collection(db, 'users'),
+      where('role', 'in', ['admin', 'admin_super'])
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error('findAdminOrSuperAdmin error:', err);
+    return [];
+  }
+}
