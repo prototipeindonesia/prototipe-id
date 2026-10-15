@@ -14,7 +14,8 @@
     "firebase": "^10.12.5",
     "lucide-react": "^0.427.0",
     "react-hot-toast": "^2.4.1",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "@emailjs/browser": "^4.4.1"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.7",
