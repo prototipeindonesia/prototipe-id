@@ -2,6 +2,7 @@ import {
   collection,
   addDoc,
   query,
+  where,
   orderBy,
   onSnapshot,
   serverTimestamp,
@@ -9,15 +10,37 @@ import {
   setDoc,
   getDoc,
   getDocs,
-  where,
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
 // =========================================================
-// BUAT ID CHAT UNIK dari 2 user (urut abjad agar konsisten)
+// BUAT ID CHAT UNIK dari 2 user
 // =========================================================
 export function getChatId(uid1, uid2) {
   return [uid1, uid2].sort().join('_');
+}
+
+// =========================================================
+// BUAT / PASTIKAN CHAT DOC ADA (dipanggil saat pilih kontak)
+// =========================================================
+export async function ensureChatDoc(otherUserId) {
+  const senderId = auth.currentUser?.uid;
+  if (!senderId) throw new Error('Harus login.');
+
+  const chatId = getChatId(senderId, otherUserId);
+
+  await setDoc(
+    doc(db, 'chats', chatId),
+    {
+      participants: [senderId, otherUserId],
+      lastMessage: '',
+      lastMessageAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return chatId;
 }
 
 // =========================================================
@@ -29,18 +52,19 @@ export async function sendMessage(receiverId, text) {
 
   const chatId = getChatId(senderId, receiverId);
 
-  // Buat/pastikan dokumen chat ada
+  // Update metadata chat
   await setDoc(
     doc(db, 'chats', chatId),
     {
       participants: [senderId, receiverId],
       lastMessage: text,
       lastMessageAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     },
     { merge: true }
   );
 
-  // Tambah pesan
+  // Kirim pesan
   await addDoc(collection(db, 'chats', chatId, 'messages'), {
     senderId,
     receiverId,
@@ -62,46 +86,79 @@ export function subscribeMessages(receiverId, callback) {
     collection(db, 'chats', chatId, 'messages'),
     orderBy('createdAt', 'asc')
   );
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-  });
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    },
+    (err) => {
+      console.error('subscribeMessages error:', err);
+      callback([]);
+    }
+  );
 }
 
 // =========================================================
-// SUBSCRIBE DAFTAR CHAT USER (untuk sidebar)
+// SUBSCRIBE DAFTAR CHAT (UNTUK SIDEBAR)
+// ✅ FIXED: pakai where array-contains + hanya filter lastMessageAt
 // =========================================================
 export function subscribeChatList(callback) {
   const uid = auth.currentUser?.uid;
   if (!uid) return () => {};
 
+  // ✅ Filter participants dulu, lalu sort di client (biar tidak butuh composite index)
   const q = query(
     collection(db, 'chats'),
-    orderBy('lastMessageAt', 'desc')
+    where('participants', 'array-contains', uid)
   );
 
-  return onSnapshot(q, async (snap) => {
-    const chats = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((c) => c.participants?.includes(uid));
+  return onSnapshot(
+    q,
+    async (snap) => {
+      const chats = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    // Ambil data lawan bicara
-    const enriched = await Promise.all(
-      chats.map(async (c) => {
-        const otherId = c.participants.find((p) => p !== uid);
-        const userSnap = await getDoc(doc(db, 'users', otherId));
-        return {
-          ...c,
-          otherId,
-          otherUser: userSnap.exists() ? userSnap.data() : { name: 'Unknown' },
-        };
-      })
-    );
-    callback(enriched);
-  });
+      // Sort by lastMessageAt desc (client-side)
+      chats.sort((a, b) => {
+        const ta = a.lastMessageAt?.toDate?.()?.getTime?.() || 0;
+        const tb = b.lastMessageAt?.toDate?.()?.getTime?.() || 0;
+        return tb - ta;
+      });
+
+      // Ambil data lawan bicara
+      const enriched = await Promise.all(
+        chats.map(async (c) => {
+          const otherId = c.participants.find((p) => p !== uid);
+          try {
+            const userSnap = await getDoc(doc(db, 'users', otherId));
+            return {
+              ...c,
+              otherId,
+              otherUser: userSnap.exists()
+                ? userSnap.data()
+                : { name: 'Unknown' },
+            };
+          } catch (_) {
+            return {
+              ...c,
+              otherId,
+              otherUser: { name: 'Unknown' },
+            };
+          }
+        })
+      );
+
+      callback(enriched);
+    },
+    (err) => {
+      console.error('subscribeChatList error:', err);
+      callback([]);
+    }
+  );
 }
 
 // =========================================================
-// CARI SUPER ADMIN (untuk target chat otomatis)
+// CARI SUPER ADMIN
 // =========================================================
 export async function findSuperAdmin() {
   try {
@@ -120,7 +177,7 @@ export async function findSuperAdmin() {
 }
 
 // =========================================================
-// CARI SEMUA ADMIN & SUPER ADMIN (untuk modal Chat Baru)
+// CARI SEMUA ADMIN & SUPER ADMIN
 // =========================================================
 export async function findAdminOrSuperAdmin() {
   try {
