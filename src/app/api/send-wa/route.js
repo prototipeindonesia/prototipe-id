@@ -14,7 +14,7 @@ export async function POST(request) {
     const token = process.env.FONNTE_TOKEN;
     if (!token) {
       return NextResponse.json(
-        { error: 'FONNTE_TOKEN belum diset' },
+        { error: 'FONNTE_TOKEN belum diset di Vercel' },
         { status: 500 }
       );
     }
