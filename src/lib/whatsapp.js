@@ -1,6 +1,6 @@
 export async function sendWhatsApp(target, message) {
   try {
-    // Normalisasi nomor: hapus 0 di depan, +62, spasi
+    // Normalisasi nomor: 08xxx → 628xxx
     let phone = String(target).replace(/[^0-9]/g, '');
     if (phone.startsWith('0')) phone = '62' + phone.slice(1);
     if (phone.startsWith('8')) phone = '62' + phone;
@@ -18,7 +18,6 @@ export async function sendWhatsApp(target, message) {
   }
 }
 
-// Template pesan
 export function waAdminCredentials({ name, email, password, loginUrl }) {
   return `Halo *${name}* 👋
 
