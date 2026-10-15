@@ -5,13 +5,16 @@ import {
   query,
   where,
   onSnapshot,
-  orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
-import { createAdminBySuperAdmin, toggleUserStatus, deleteUserDoc } from '@/lib/auth';
+import {
+  createAdminBySuperAdmin,
+  toggleUserStatus,
+  deleteUserDoc,
+} from '@/lib/auth';
 import toast from 'react-hot-toast';
-import { Shield, UserPlus, Trash2, Power } from 'lucide-react';
+import { Shield, UserPlus, Trash2, Power, Phone } from 'lucide-react';
 
 export default function AdminsPage() {
   const { user } = useAuth();
@@ -22,6 +25,7 @@ export default function AdminsPage() {
     email: '',
     password: '',
     role: 'admin',
+    phone: '',
   });
   const [loading, setLoading] = useState(false);
 
@@ -36,22 +40,75 @@ export default function AdminsPage() {
     return () => unsub();
   }, []);
 
+  // =========================================================
+  // HANDLE CREATE — dengan Email + WA
+  // =========================================================
   const handleCreate = async (e) => {
     e.preventDefault();
+
     if (form.password.length < 6) {
       toast.error('Password minimal 6 karakter.');
       return;
     }
+
+    // Validasi nomor WA (kalau diisi)
+    if (form.phone) {
+      const cleaned = form.phone.replace(/[^0-9]/g, '');
+      if (cleaned.length < 9 || cleaned.length > 15) {
+        toast.error('Nomor WhatsApp tidak valid.');
+        return;
+      }
+    }
+
     setLoading(true);
+
     try {
-      await createAdminBySuperAdmin(form.email, form.password, form.name, form.role);
-      toast.success(`Admin ${form.name} berhasil dibuat!`);
-      setForm({ name: '', email: '', password: '', role: 'admin' });
+      const result = await createAdminBySuperAdmin(
+        form.email,
+        form.password,
+        form.name,
+        form.role,
+        form.phone || null
+      );
+
+      // Bangun notifikasi berdasarkan hasil
+      const delivered = [];
+      if (result.emailSent) delivered.push('📧 Email');
+      if (result.waSent) delivered.push('📱 WhatsApp');
+
+      if (delivered.length === 2) {
+        toast.success(`Admin ${form.name} dibuat & ${delivered.join(' + ')} terkirim! 🎉`);
+      } else if (delivered.length === 1) {
+        toast.success(`Admin ${form.name} dibuat & ${delivered[0]} terkirim!`);
+        // Kasih warning kecil kalau salah satu gagal
+        if (form.phone && !result.waSent) {
+          toast.error('WA gagal terkirim — kabari manual.');
+        }
+        if (!result.emailSent) {
+          toast.error('Email gagal terkirim — kabari manual.');
+        }
+      } else {
+        toast.success(`Admin ${form.name} dibuat!`);
+        toast.error('Email & WA gagal — kabari manual ke admin baru.');
+      }
+
+      // Reset form
+      setForm({
+        name: '',
+        email: '',
+        password: '',
+        role: 'admin',
+        phone: '',
+      });
       setShowForm(false);
     } catch (err) {
       let msg = err.message;
       if (msg.includes('email-already-in-use')) {
-        msg = 'Email sudah terdaftar.';
+        msg = 'Email sudah terdaftar. Gunakan email lain.';
+      } else if (msg.includes('invalid-email')) {
+        msg = 'Format email tidak valid.';
+      } else if (msg.includes('weak-password')) {
+        msg = 'Password terlalu lemah.';
       }
       toast.error(msg);
     } finally {
@@ -59,6 +116,9 @@ export default function AdminsPage() {
     }
   };
 
+  // =========================================================
+  // HANDLE TOGGLE STATUS
+  // =========================================================
   const handleToggle = async (uid, currentStatus) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     try {
@@ -69,14 +129,33 @@ export default function AdminsPage() {
     }
   };
 
+  // =========================================================
+  // HANDLE DELETE
+  // =========================================================
   const handleDelete = async (uid, name) => {
-    if (!confirm(`Yakin hapus admin ${name}? Tindakan ini tidak bisa dibatalkan.`)) return;
+    if (!confirm(`Yakin hapus admin ${name}? Tindakan ini tidak bisa dibatalkan.`)) {
+      return;
+    }
     try {
       await deleteUserDoc(uid);
       toast.success('Admin dihapus.');
     } catch (err) {
       toast.error(err.message);
     }
+  };
+
+  // =========================================================
+  // HANDLE RESET FORM SAAT BATAL
+  // =========================================================
+  const handleCancel = () => {
+    setForm({
+      name: '',
+      email: '',
+      password: '',
+      role: 'admin',
+      phone: '',
+    });
+    setShowForm(false);
   };
 
   return (
@@ -98,14 +177,22 @@ export default function AdminsPage() {
         </button>
       </div>
 
-      {/* Form Tambah Admin */}
+      {/* ============================================== */}
+      {/* FORM TAMBAH ADMIN */}
+      {/* ============================================== */}
       {showForm && (
-        <form onSubmit={handleCreate} className="card space-y-4 border-2 border-blue-200">
+        <form
+          onSubmit={handleCreate}
+          className="card space-y-4 border-2 border-blue-200"
+        >
           <h3 className="font-semibold">Tambah Admin Baru</h3>
 
           <div className="grid md:grid-cols-2 gap-4">
+            {/* Nama */}
             <div>
-              <label className="text-sm font-medium mb-1 block">Nama Lengkap</label>
+              <label className="text-sm font-medium mb-1 block">
+                Nama Lengkap <span className="text-red-500">*</span>
+              </label>
               <input
                 placeholder="Nama admin"
                 className="input"
@@ -115,8 +202,11 @@ export default function AdminsPage() {
               />
             </div>
 
+            {/* Email */}
             <div>
-              <label className="text-sm font-medium mb-1 block">Email</label>
+              <label className="text-sm font-medium mb-1 block">
+                Email <span className="text-red-500">*</span>
+              </label>
               <input
                 type="email"
                 placeholder="email@prototipe.id"
@@ -127,8 +217,11 @@ export default function AdminsPage() {
               />
             </div>
 
+            {/* Password */}
             <div>
-              <label className="text-sm font-medium mb-1 block">Password</label>
+              <label className="text-sm font-medium mb-1 block">
+                Password <span className="text-red-500">*</span>
+              </label>
               <input
                 type="password"
                 placeholder="Minimal 6 karakter"
@@ -140,8 +233,11 @@ export default function AdminsPage() {
               />
             </div>
 
+            {/* Role */}
             <div>
-              <label className="text-sm font-medium mb-1 block">Role</label>
+              <label className="text-sm font-medium mb-1 block">
+                Role <span className="text-red-500">*</span>
+              </label>
               <select
                 className="input"
                 value={form.role}
@@ -150,6 +246,27 @@ export default function AdminsPage() {
                 <option value="admin">Admin</option>
                 <option value="admin_super">Super Admin</option>
               </select>
+            </div>
+
+            {/* No. WhatsApp — FULL WIDTH */}
+            <div className="md:col-span-2">
+              <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+                <Phone size={14} />
+                No. WhatsApp
+                <span className="text-xs text-gray-400 font-normal">
+                  (opsional — untuk kirim kredensial otomatis)
+                </span>
+              </label>
+              <input
+                type="tel"
+                placeholder="08xxxxxxxxxx"
+                className="input"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Format: 08xxx atau 62xxx. Kosongkan kalau tidak mau kirim WA.
+              </p>
             </div>
           </div>
 
@@ -163,40 +280,62 @@ export default function AdminsPage() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={handleCancel}
               className="btn btn-outline"
             >
               Batal
             </button>
           </div>
 
-          <p className="text-xs text-amber-600 bg-amber-50 p-2 rounded">
-            ⚠️ Pastikan email & password disampaikan ke admin baru.
-            Password tidak bisa dilihat lagi setelah dibuat.
-          </p>
+          <div className="bg-amber-50 border border-amber-200 p-3 rounded text-xs text-amber-700 space-y-1">
+            <p className="font-semibold">⚠️ Perhatian:</p>
+            <ul className="list-disc list-inside space-y-0.5">
+              <li>
+                Kredensial akan dikirim via <strong>Email + WhatsApp</strong> (kalau
+                nomor diisi).
+              </li>
+              <li>
+                Kalau pengiriman gagal, Anda perlu <strong>kabari manual</strong>{' '}
+                ke admin baru.
+              </li>
+              <li>Password tidak bisa dilihat lagi setelah dibuat.</li>
+            </ul>
+          </div>
         </form>
       )}
 
-      {/* Daftar Admin */}
+      {/* ============================================== */}
+      {/* DAFTAR ADMIN */}
+      {/* ============================================== */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {admins.map((a) => {
           const isMe = a.uid === user?.uid;
           return (
             <div key={a.id} className="card relative">
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold">
+                <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold flex-shrink-0">
                   {a.name?.[0]?.toUpperCase() || '?'}
                 </div>
-                <div>
-                  <h3 className="font-semibold flex items-center gap-2">
-                    {a.name}
-                    {isMe && <span className="badge bg-blue-100 text-blue-600">Anda</span>}
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold flex items-center gap-2 flex-wrap">
+                    <span className="truncate">{a.name}</span>
+                    {isMe && (
+                      <span className="badge bg-blue-100 text-blue-600">
+                        Anda
+                      </span>
+                    )}
                   </h3>
-                  <p className="text-xs text-gray-500">{a.email}</p>
+                  <p className="text-xs text-gray-500 truncate">{a.email}</p>
+                  {a.phone && (
+                    <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                      <Phone size={10} />
+                      {a.phone}
+                    </p>
+                  )}
                 </div>
               </div>
 
-              <div className="flex gap-2 mb-3">
+              <div className="flex gap-2 mb-3 flex-wrap">
                 <span
                   className={`badge ${
                     a.role === 'admin_super'
@@ -229,6 +368,7 @@ export default function AdminsPage() {
                   <button
                     onClick={() => handleDelete(a.uid, a.name)}
                     className="btn btn-outline text-xs text-red-600 border-red-200 hover:bg-red-50"
+                    title="Hapus admin"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -237,8 +377,12 @@ export default function AdminsPage() {
             </div>
           );
         })}
+
         {admins.length === 0 && (
-          <p className="text-gray-500">Belum ada admin.</p>
+          <div className="card col-span-full text-center py-12">
+            <Shield size={40} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500">Belum ada admin.</p>
+          </div>
         )}
       </div>
     </div>
